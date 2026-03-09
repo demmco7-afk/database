@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bot Control Panel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h1>BOT PANEL</h1>
+
+<div class="box">
+
+<h3>Status Bot</h3>
+
+<button onclick="setStatus(true)">ON</button>
+<button onclick="setStatus(false)">OFF</button>
+
+<p id="status"></p>
+
+</div>
+
+<div class="box">
+
+<h3>Token List</h3>
+
+<div id="list"></div>
+
+</div>
+
+<script>
+
+if(localStorage.getItem("login")!=="true"){
+location="index.html"
+}
+
+async function getDB(){
+
+let res = await fetch("https://raw.githubusercontent.com/a70944947-sketch/databasee/main/database.json")
+
+let db = await res.json()
+
+return db
+
+}
+
+async function load(){
+
+let db = await getDB()
+
+status.innerText = db.status ? "ONLINE":"OFFLINE"
+
+list.innerHTML=""
+
+db.tokens.forEach(t=>{
+
+let div=document.createElement("div")
+
+div.innerText=t
+
+list.appendChild(div)
+
+})
+
+}
+
+load()
+
+</script>
+
+</body>
+</html>
