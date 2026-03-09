@@ -1,71 +1,123 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-<title>Bot Control Panel</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Control token</title>
 <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<h1>BOT PANEL</h1>
+<h1>BOT CONTROL TOKEN</h1>
 
 <div class="box">
-
-<h3>Status Bot</h3>
-
-<button onclick="setStatus(true)">ON</button>
-<button onclick="setStatus(false)">OFF</button>
-
-<p id="status"></p>
-
+  <h3>Status Bot</h3>
+  <button onclick="setStatus(true)">ON</button>
+  <button onclick="setStatus(false)">OFF</button>
+  <p id="status"></p>
 </div>
 
 <div class="box">
+  <h3>Add Token</h3>
+  <input id="token" placeholder="Token baru">
+  <button onclick="addToken()">Add</button>
+</div>
 
-<h3>Token List</h3>
+<div class="box">
+  <h3>Token List</h3>
+  <div id="list"></div>
+</div>
 
-<div id="list"></div>
-
+<div class="box">
+  <h3>Reseller / Mod</h3>
+  <input id="reseller" placeholder="Username Reseller / Mod">
+  <button onclick="addReseller()">Add Reseller/Mod</button>
+  <div id="resellers"></div>
 </div>
 
 <script>
-
 if(localStorage.getItem("login")!=="true"){
-location="index.html"
+  location="index.html"
 }
 
+const DB_URL = "https://raw.githubusercontent.com/a70944947-sketch/databasee/main/database.json"
+
 async function getDB(){
+  let res = await fetch(DB_URL)
+  return await res.json()
+}
 
-let res = await fetch("https://raw.githubusercontent.com/a70944947-sketch/databasee/main/database.json")
-
-let db = await res.json()
-
-return db
-
+async function sendUpdate(data){
+  await fetch("/api/update",{
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  })
 }
 
 async function load(){
+  let db = await getDB()
+  status.innerText = db.status ? "ONLINE":"OFFLINE"
 
-let db = await getDB()
+  // Token List
+  list.innerHTML=""
+  db.tokens.forEach(t=>{
+    let div = document.createElement("div")
+    div.innerHTML=`${t} <button onclick="delToken('${t}')">Delete</button>`
+    list.appendChild(div)
+  })
 
-status.innerText = db.status ? "ONLINE":"OFFLINE"
+  // Reseller List
+  resellers.innerHTML=""
+  db.resellers.forEach(r=>{
+    let div = document.createElement("div")
+    div.innerHTML=`${r} <button onclick="delReseller('${r}')">Delete</button>`
+    resellers.appendChild(div)
+  })
+}
 
-list.innerHTML=""
+async function setStatus(s){
+  let db = await getDB()
+  db.status = s
+  await sendUpdate(db)
+  load()
+}
 
-db.tokens.forEach(t=>{
+async function addToken(){
+  let t = token.value.trim()
+  if(!t) return
+  let db = await getDB()
+  db.tokens.push(t)
+  await sendUpdate(db)
+  token.value=""
+  load()
+}
 
-let div=document.createElement("div")
+async function delToken(t){
+  let db = await getDB()
+  db.tokens = db.tokens.filter(x=>x!==t)
+  await sendUpdate(db)
+  load()
+}
 
-div.innerText=t
+async function addReseller(){
+  let r = reseller.value.trim()
+  if(!r) return
+  let db = await getDB()
+  db.resellers.push(r)
+  await sendUpdate(db)
+  reseller.value=""
+  load()
+}
 
-list.appendChild(div)
-
-})
-
+async function delReseller(r){
+  let db = await getDB()
+  db.resellers = db.resellers.filter(x=>x!==r)
+  await sendUpdate(db)
+  load()
 }
 
 load()
-
 </script>
 
 </body>
