@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Database</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Courier New',monospace;}
+body{background:#010a13;color:#00f2ff;display:flex;justify-content:center;align-items:center;min-height:100vh;}
+audio{display:none;}
+.panel-box,.login-box{background:#111;padding:25px;border-radius:12px;box-shadow:0 0 25px #00f2ff;display:flex;flex-direction:column;gap:15px;}
+.login-box{width:90%;max-width:400px;align-items:center;}
+.panel-box{width:95%;max-width:480px;display:none;}
+input{width:100%;padding:12px;border:none;border-radius:6px;background:#222;color:#0ff;font-size:14px;margin:5px 0;}
+button{width:100%;padding:12px;border:none;border-radius:6px;font-weight:bold;font-size:16px;margin:3px 0;cursor:pointer;}
+.btn-on{background:#22c55e;color:#000;width:48%;} 
+.btn-off{background:#ef4444;color:#000;width:48%;} 
+.btn-maint{background:#f59e0b;color:#000;width:100%;} 
+.btn-add{background:#3b82f6;color:#000;width:100%;} 
+.btn-del{background:#f97316;color:#000;padding:5px 10px;font-size:12px;}
+.status{text-align:center;font-weight:bold;}
+.alert{display:none;background:#f59e0b;padding:10px;border-radius:6px;text-align:center;font-size:13px;}
+.token-box,.reseller-box{background:#020617;padding:10px;border-radius:6px;max-height:150px;overflow-y:auto;font-size:14px;scroll-behavior:smooth;}
+.token-box::-webkit-scrollbar,.reseller-box::-webkit-scrollbar{width:8px;}
+.token-box::-webkit-scrollbar-thumb,.reseller-box::-webkit-scrollbar-thumb{background:#00f2ff;border-radius:4px;}
+.token-box::-webkit-scrollbar-track,.reseller-box::-webkit-scrollbar-track{background:#111;border-radius:4px;}
+</style>
+</head>
+<body>
+
+<audio id="bgm" src="bgm.mp3" loop autoplay></audio>
+
+<div class="login-box" id="loginPage">
+<h2>LOGIN PANEL</h2>
+<input type="text" id="username" placeholder="Username">
+<input type="password" id="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+
+<div class="panel-box" id="panelPage">
+<h2 style="text-align:center;">Control Database</h2>
+<div class="alert" id="alertBox"></div>
+<div class="status">Status: <span id="botStatus">Loading...</span></div>
+
+<div style="display:flex;justify-content:space-between;gap:4%;">
+<button class="btn-on" onclick="setStatus(true)">ON</button>
+<button class="btn-off" onclick="setStatus(false)">OFF</button>
+</div>
+<button class="btn-maint" onclick="setMaintenance()">Maintenance</button>
+
+<h3>Add Token</h3>
+<input type="text" id="tokenInput" placeholder="Masukkan token">
+<button class="btn-add" onclick="addToken()">Tambah Token</button>
+
+<h3>Token List (<span id="tokenCount">0</span>)</h3>
+<div class="token-box" id="tokenList"></div>
+
+<h3>Reseller / Mod</h3>
+<input type="text" id="resellerInput" placeholder="Username Reseller / Mod">
+<button class="btn-add" onclick="addReseller()">Tambah Reseller/Mod</button>
+<div class="reseller-box" id="resellerList"></div>
+</div>
+
+<script>
+// ===== CONFIG GITHUB =====
+const config={
+  githubToken:"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", // token GitHub kamu
+  owner:"a70944947-sketch",
+  repo:"database",
+  file:"database.json"
+};
+
+// ===== USERS LOGIN =====
+const USERS=[
+  {username:"dev",password:"12345",role:"developer"}, 
+  {username:"mod1",password:"modpw",role:"mod"},      
+  {username:"reseller1",password:"respw",role:"reseller"}
+];
+let CURRENT_USER=null;
+
+// ===== LOGIN FUNCTION =====
+function login(){
+  const u=document.getElementById("username").value
+  const p=document.getElementById("password").value
+  const user=USERS.find(x=>x.username===u && x.password===p)
+  if(user){
+    CURRENT_USER=user
+    document.getElementById("loginPage").style.display="none"
+    document.getElementById("panelPage").style.display="flex"
+    document.getElementById("bgm").play().catch(()=>{})
+    refresh()
+    alert("Login sukses! Role: "+user.role)
+  }else alert("Username atau Password salah")
+}
+
+// ===== GITHUB FILE FUNCTIONS =====
+async function getFile(){
+  const res=await fetch(`https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.file}`,{
+    headers:{"Authorization":"token "+config.githubToken}
+  })
+  const data=await res.json()
+  return {sha:data.sha,content:JSON.parse(atob(data.content))}
+}
+
+async function updateFile(newContent,sha){
+  await fetch(`https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.file}`,{
+    method:"PUT",
+    headers:{"Authorization":"token "+config.githubToken,"Content-Type":"application/json"},
+    body:JSON.stringify({message:"Update panel",content:btoa(JSON.stringify(newContent,null,2)),sha:sha})
+  })
+}
+
+// ===== REAL-TIME REFRESH =====
+let TOKENS=[],RESELLERS=[],BOT_STATUS=true,MAINT=false;
+async function refresh(){
+  try{
+    const file=await getFile()
+    const data=file.content
+    TOKENS=data.tokens||[]
+    RESELLERS=data.resellers||[]
+    BOT_STATUS=data.status
+    MAINT=data.maintenance
+
+    document.getElementById("botStatus").innerText=BOT_STATUS?"ONLINE 🟢":"OFFLINE 🔴"
+    const alertBox=document.getElementById("alertBox")
+    if(!BOT_STATUS || MAINT){alertBox.style.display="block";alertBox.innerText="⚠ Script sedang pemeliharaan hubungi developer"}
+    else alertBox.style.display="none"
+
+    document.getElementById("tokenCount").innerText=TOKENS.length
+    const list=document.getElementById("tokenList")
+    list.innerHTML=""
+    TOKENS.forEach(t=>{
+      const div=document.createElement("div")
+      div.style.display="flex";div.style.justifyContent="space-between";div.style.alignItems="center";div.style.marginBottom="5px"
+      if(CURRENT_USER.role==="developer") div.innerHTML=`<span>${t}</span><button class="btn-del" onclick="deleteToken('${t}')">X</button>`
+      else div.innerHTML=`<span>${t}</span>`
+      list.appendChild(div)
+    })
+
+    const resList=document.getElementById("resellerList")
+    resList.innerHTML=""
+    RESELLERS.forEach(r=>{
+      const div=document.createElement("div")
+      div.style.display="flex";div.style.justifyContent="space-between";div.style.alignItems="center";div.style.marginBottom="5px"
+      if(CURRENT_USER.role==="developer") div.innerHTML=`<span>${r}</span><button class="btn-del" onclick="deleteReseller('${r}')">X</button>`
+      else div.innerHTML=`<span>${r}</span>`
+      resList.appendChild(div)
+    })
+  }catch(e){
+    console.error("Gagal refresh:",e)
+    document.getElementById("botStatus").innerText="Gagal koneksi ❌"
+  }
+}
+
+// ===== ACTIONS =====
+async function addToken(){
+  if(CURRENT_USER.role==="reseller"){alert("Tidak punya akses!"); return}
+  const t=document.getElementById("tokenInput").value
+  if(!t)return
+  const file=await getFile()
+  file.content.tokens.push(t)
+  await updateFile(file.content,file.sha)
+  document.getElementById("tokenInput").value=""
+  refresh()
+}
+
+async function deleteToken(t){
+  if(CURRENT_USER.role!=="developer"){alert("Hanya developer!"); return}
+  const file=await getFile()
+  file.content.tokens=file.content.tokens.filter(x=>x!==t)
+  await updateFile(file.content,file.sha)
+  refresh()
+}
+
+async function addReseller(){
+  if(CURRENT_USER.role==="reseller"){alert("Tidak punya akses!"); return}
+  const r=document.getElementById("resellerInput").value
+  if(!r)return
+  const file=await getFile()
+  file.content.resellers.push(r)
+  await updateFile(file.content,file.sha)
+  document.getElementById("resellerInput").value=""
+  refresh()
+}
+
+async function deleteReseller(r){
+  if(CURRENT_USER.role!=="developer"){alert("Hanya developer!"); return}
+  const file=await getFile()
+  file.content.resellers=file.content.resellers.filter(x=>x!==r)
+  await updateFile(file.content,file.sha)
+  refresh()
+}
+
+async function setStatus(s){
+  if(CURRENT_USER.role!=="developer"){alert("Hanya developer bisa mengubah status!"); return}
+  const file=await getFile()
+  file.content.status=s
+  await updateFile(file.content,file.sha)
+  refresh()
+}
+
+async function setMaintenance(){
+  if(CURRENT_USER.role!=="developer"){alert("Hanya developer bisa maintenance!"); return}
+  const file=await getFile()
+  file.content.maintenance=true
+  file.content.status=false
+  await updateFile(file.content,file.sha)
+  refresh()
+}
+
+setInterval(refresh,3000)
+</script>
+</body>
+</html>
